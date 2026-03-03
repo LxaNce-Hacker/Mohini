@@ -1,10 +1,10 @@
 #!/bin/bash
-# Mohini v1.0
+# Mohini v1.1
 # coded by: github.com/LxaNce-Hacker/Mohini
 # Using Recorderjs by: https://github.com/mattdiamond/Recorderjs
 
 
-__version__="1.0"
+__version__="1.1"
 
 ## ANSI colors (FG & BG)
 RED="$(printf '\033[31m')"  GREEN="$(printf '\033[32m')"  ORANGE="$(printf '\033[33m')"  BLUE="$(printf '\033[34m')"
@@ -108,10 +108,10 @@ server() {
   fi
 
   if [[ $subdomain_resp == true ]]; then
-    $(which sh) -c 'ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R '$subdomain':80:localhost:3333 serveo.net  2> /dev/null > sendlink ' &
+    $(which sh) -c "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R $subdomain:80:localhost:3333 serveo.net > sendlink 2>&1" &
     sleep 8
   else
-    $(which sh) -c 'ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:localhost:3333 serveo.net 2> /dev/null > sendlink ' &
+    $(which sh) -c "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:localhost:3333 serveo.net > sendlink 2>&1" &
     sleep 8
   fi
 
@@ -119,10 +119,9 @@ server() {
   fuser -k 3333/tcp > /dev/null 2>&1
   php -S localhost:3333 > /dev/null 2>&1 &
   sleep 3
-  send_link=$(grep -o "https://[0-9a-z]*\.serveo.net" sendlink)
+  send_link=$(grep -o 'https://[^ ]*' sendlink)
   echo -e "\n${RED}[${WHITE}+${RED}]${GREEN} Direct link : ${BLUE}$send_link"
 }
-
 
 start1() {
   if [[ -e sendlink ]]; then
