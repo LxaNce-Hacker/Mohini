@@ -18,7 +18,7 @@ redButton.addEventListener("click", Redirect);
 
 function Redirect() {
 
-window.open('https://hi.com', '_blank');
+window.open('https://lxance.xyz', '_blank');
 
 
 }

